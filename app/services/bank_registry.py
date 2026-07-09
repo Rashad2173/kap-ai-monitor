@@ -190,17 +190,6 @@ def get_bank_name(bank: str) -> str:
     return BANK_NAMES.get(bank, bank)
 
 
-def detect_bank_from_question(question: str) -> str | None:
-    q = normalize_text(question)
-
-    for ticker in BANK_ALIASES:
-        for alias in get_bank_detection_aliases(ticker):
-            alias_norm = normalize_text(alias)
-            if alias_norm and re.search(bank_alias_pattern(alias_norm), q):
-                return ticker
-
-    return None
-
 def detect_banks_from_question(question: str) -> list[str]:
     q = normalize_text(question)
 
