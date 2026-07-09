@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -196,6 +197,81 @@ class QuestionRouterRegressionTests(unittest.TestCase):
         self.assertEqual(document_location.mode, "document_location")
         self.assertIn("önemli muhasebe politikalarının özeti", document_location.answer)
         self.assertNotIn("Bağımsız Denetçi Görüşü / Giriş", document_location.answer)
+
+
+@unittest.skipUnless(os.getenv("DATABASE_URL"), "DATABASE_URL is required for route tests")
+class LatestReportFilterRegressionTests(unittest.TestCase):
+    def test_collect_numeric_candidates_only_uses_latest_report(self) -> None:
+        from app.db.connection import SessionLocal
+        from app.db.models import Bank, FinancialMetric, Report
+        from app.services.numeric_service import collect_numeric_candidates
+
+        session = SessionLocal()
+
+        try:
+            ticker = "ZZTEST01"
+
+            bank = Bank(ticker=ticker, company_name="Test Bank")
+            session.add(bank)
+            session.flush()
+
+            old_report = Report(
+                bank_id=bank.id,
+                ticker=ticker,
+                disclosure_id=f"{ticker}_OLD",
+                publish_date=date(2026, 3, 31),
+                period_code="2026_Q1",
+            )
+            new_report = Report(
+                bank_id=bank.id,
+                ticker=ticker,
+                disclosure_id=f"{ticker}_NEW",
+                publish_date=date(2026, 6, 30),
+                period_code="2026_Q2",
+            )
+            session.add_all([old_report, new_report])
+            session.flush()
+
+            # Eski dönemin değeri kasıtlı olarak daha büyük: skor eşitliğinde
+            # tie-break değere değil, en güncel rapora göre yapılmalı.
+            session.add_all(
+                [
+                    FinancialMetric(
+                        report_id=old_report.id,
+                        ticker=ticker,
+                        period="2026_Q1",
+                        table_type="gelir_tablosu",
+                        metric="DÖNEM NET KARI VEYA ZARARI",
+                        unit="1.000 TL",
+                        values_json={"cari_TOPLAM (31.03.2026)": "9.000.000"},
+                    ),
+                    FinancialMetric(
+                        report_id=new_report.id,
+                        ticker=ticker,
+                        period="2026_Q2",
+                        table_type="gelir_tablosu",
+                        metric="DÖNEM NET KARI VEYA ZARARI",
+                        unit="1.000 TL",
+                        values_json={"cari_TOPLAM (30.06.2026)": "1.000.000"},
+                    ),
+                ]
+            )
+            session.flush()
+
+            candidates = collect_numeric_candidates(
+                session=session,
+                bank=ticker,
+                intent="net_kar",
+            )
+
+            self.assertEqual(len(candidates), 1)
+            self.assertEqual(candidates[0].report_id, new_report.id)
+
+        finally:
+            # Gerçek DB'yi kalıcı olarak değiştirmemek için hiçbir zaman commit
+            # etmiyoruz; test verisi rollback ile tamamen geri alınır.
+            session.rollback()
+            session.close()
 
 
 if __name__ == "__main__":

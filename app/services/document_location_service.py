@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.models import RagChunk
 from app.schemas.api import AskResponse
 from app.services.bank_registry import get_bank_name
+from app.services.report_metadata_service import get_latest_report_ids
 from app.utils.text_utils import normalize_text
 
 
@@ -151,6 +152,16 @@ def find_document_location_chunks(
 
     if bank != "ALL":
         query = query.filter(RagChunk.ticker == bank)
+
+    # Ticker başına en güncel rapora ait chunk'larla sınırla; aksi halde eski
+    # dönemin metni yanlışlıkla güncel konum bilgisi gibi seçilebilir.
+    latest_report_ids = get_latest_report_ids(
+        session,
+        tickers=[bank] if bank != "ALL" else None,
+    )
+
+    if latest_report_ids:
+        query = query.filter(RagChunk.report_id.in_(latest_report_ids.values()))
 
     chunks = query.limit(5000).all()
     scored: list[tuple[int, RagChunk]] = []

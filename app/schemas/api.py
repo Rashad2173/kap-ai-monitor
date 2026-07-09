@@ -21,3 +21,4 @@ class DashboardSummaryResponse(BaseModel):
     highlight: dict[str, Any]
     audit: dict[str, Any]
     summary: str
+    period_label: str = ""

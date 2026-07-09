@@ -61,6 +61,45 @@ def latest_report(session: Session, bank: str) -> Report | None:
     )
 
 
+def get_latest_report_ids(
+    session: Session,
+    tickers: list[str] | None = None,
+) -> dict[str, int]:
+    """Ticker başına en güncel raporun id'sini döndürür (sıralama latest_report() ile aynı)."""
+    if tickers is None:
+        tickers = [row[0] for row in session.query(Report.ticker).distinct().all()]
+
+    result: dict[str, int] = {}
+
+    for ticker in tickers:
+        report = (
+            session.query(Report)
+            .filter(Report.ticker == ticker)
+            .order_by(
+                Report.publish_date.desc().nullslast(),
+                Report.publish_time.desc().nullslast(),
+                Report.id.desc(),
+            )
+            .limit(1)
+            .one_or_none()
+        )
+
+        if report:
+            result[ticker] = report.id
+
+    return result
+
+
+def get_display_period_label(session: Session, bank: str) -> str:
+    """En güncel raporun period_code'unu gösterime uygun etikete çevirir, örn. "2026_Q1" -> "2026 Q1"."""
+    report = latest_report(session, bank)
+
+    if report and report.period_code:
+        return report.period_code.replace("_", " ")
+
+    return "güncel dönem"
+
+
 def extract_period(column_name: str | None) -> str:
     if not column_name:
         return ""

@@ -17,6 +17,7 @@ from app.services.numeric_service import (
     row_to_candidate,
 )
 from app.services.rag_service import search_rag
+from app.services.report_metadata_service import get_display_period_label, latest_report
 from app.utils.text_utils import (
     calculate_change_text,
     format_value,
@@ -26,31 +27,11 @@ from app.utils.text_utils import (
 
 
 SUMMARY_METRICS = [
-    {
-        "label": "Dönem net kârı",
-        "intent": "net_kar",
-        "question_template": "{bank_name} 2026 Q1 dönem net kârı ne kadar?",
-    },
-    {
-        "label": "Varlıklar toplamı",
-        "intent": "varliklar_toplami",
-        "question_template": "{bank_name} 2026 Q1 varlıklar toplamı ne kadar?",
-    },
-    {
-        "label": "Krediler",
-        "intent": "krediler",
-        "question_template": "{bank_name} 2026 Q1 krediler toplamı ne kadar?",
-    },
-    {
-        "label": "Mevduat",
-        "intent": "mevduat",
-        "question_template": "{bank_name} 2026 Q1 mevduat toplamı ne kadar?",
-    },
-    {
-        "label": "Özkaynaklar",
-        "intent": "ozkaynak",
-        "question_template": "{bank_name} 2026 Q1 özkaynaklar toplamı ne kadar?",
-    },
+    {"label": "Dönem net kârı", "intent": "net_kar"},
+    {"label": "Varlıklar toplamı", "intent": "varliklar_toplami"},
+    {"label": "Krediler", "intent": "krediler"},
+    {"label": "Mevduat", "intent": "mevduat"},
+    {"label": "Özkaynaklar", "intent": "ozkaynak"},
 ]
 
 
@@ -58,17 +39,17 @@ PEER_RANKING_METRICS = [
     {
         "label": "Dönem net kârı",
         "intent": "net_kar",
-        "question": "Tüm bankaların 2026 Q1 dönem net kârı ne kadar?",
+        "question_template": "Tüm bankaların {period_label} dönem net kârı ne kadar?",
     },
     {
         "label": "Varlıklar toplamı",
         "intent": "varliklar_toplami",
-        "question": "Tüm bankaların 2026 Q1 varlıklar toplamı ne kadar?",
+        "question_template": "Tüm bankaların {period_label} varlıklar toplamı ne kadar?",
     },
     {
         "label": "Krediler",
         "intent": "krediler",
-        "question": "Tüm bankaların 2026 Q1 krediler toplamı ne kadar?",
+        "question_template": "Tüm bankaların {period_label} krediler toplamı ne kadar?",
     },
 ]
 
@@ -134,6 +115,12 @@ def build_metric_sources(summary_items: list[dict[str, Any]]) -> list[dict[str, 
         )
 
     return sources
+
+
+def _get_period_code(session: Session, bank: str) -> str:
+    report = latest_report(session, bank)
+
+    return report.period_code if report and report.period_code else "guncel_donem"
 
 
 def select_summary_metrics_with_llm(
@@ -223,7 +210,7 @@ Sadece geçerli JSON döndür:
     payload = {
         "bank": bank,
         "bank_name": bank_name,
-        "period": "2026_Q1",
+        "period": _get_period_code(session, bank),
         "candidate_groups": candidate_groups,
     }
 
@@ -356,12 +343,13 @@ def build_peer_rankings(
     bank: str,
 ) -> list[dict[str, Any]]:
     rankings: list[dict[str, Any]] = []
+    period_label = get_display_period_label(session, "ALL")
 
     for spec in PEER_RANKING_METRICS:
         rows = selected_rows_for_all_banks(
             session=session,
             intent=spec["intent"],
-            question=spec["question"],
+            question=spec["question_template"].format(period_label=period_label),
         )
 
         rank = None
@@ -408,12 +396,13 @@ def build_peer_rankings(
     return rankings
 
 
-def get_audit_rag_sources(bank: str) -> list[dict[str, Any]]:
+def get_audit_rag_sources(session: Session, bank: str) -> list[dict[str, Any]]:
     bank_name = get_bank_name(bank)
+    period_label = get_display_period_label(session, bank)
 
     return search_rag(
         question=(
-            f"{bank_name} 2026 Q1 denetim sonucu, sınırlı denetim, "
+            f"{bank_name} {period_label} denetim sonucu, sınırlı denetim, "
             f"dikkat çekilen hususlar, şartlı görüş, önemli riskler"
         ),
         bank=bank,
@@ -423,13 +412,14 @@ def get_audit_rag_sources(bank: str) -> list[dict[str, Any]]:
 
 def build_fallback_summary_answer(
     bank: str,
+    period_label: str,
     summary_items: list[dict[str, Any]],
     peer_rankings: list[dict[str, Any]],
     rag_sources: list[dict[str, Any]],
 ) -> str:
     bank_name = get_bank_name(bank)
 
-    lines = [f"{bank_name} 2026 Q1 Yönetici Özeti", ""]
+    lines = [f"{bank_name} {period_label} Yönetici Özeti", ""]
 
     lines.append("Ana Finansal Göstergeler:")
 
@@ -474,13 +464,14 @@ def build_executive_summary_answer(
                 "Yönetici özeti için önce belirli bir banka seçmeni öneririm. "
                 "Tüm bankalar seçiliyken karşılaştırma soruları daha uygundur. "
                 "Örneğin: 'Tüm bankaları net kâra göre sırala' veya "
-                "'VakıfBank Q1 özetler misin?'"
+                "'VakıfBank özetler misin?'"
             ),
             mode="executive_summary_need_bank",
             sources=[],
         )
 
     bank_name = get_bank_name(bank)
+    period_label = get_display_period_label(session, bank)
 
     summary_items = select_summary_metrics_with_llm(
         session=session,
@@ -492,7 +483,7 @@ def build_executive_summary_answer(
         bank=bank,
     )
 
-    rag_sources = get_audit_rag_sources(bank)
+    rag_sources = get_audit_rag_sources(session, bank)
 
     metric_sources = build_metric_sources(summary_items)
     all_sources = metric_sources + rag_sources
@@ -501,6 +492,7 @@ def build_executive_summary_answer(
         return AskResponse(
             answer=build_fallback_summary_answer(
                 bank=bank,
+                period_label=period_label,
                 summary_items=summary_items,
                 peer_rankings=peer_rankings,
                 rag_sources=rag_sources,
@@ -513,7 +505,7 @@ def build_executive_summary_answer(
 Sen banka genel müdürüne rapor hazırlayan kıdemli finansal analiz asistanısın.
 
 Görevin:
-- Verilen financial_metrics ve RAG kaynaklarına dayanarak yönetici seviyesinde Q1 özeti yazmak.
+- Verilen financial_metrics ve RAG kaynaklarına dayanarak yönetici seviyesinde dönem özeti yazmak.
 - Sayıları sadece verilen metric_data içinden kullanmak.
 - Kaynakta olmayan bilgi, sebep, yönetim açıklaması, piyasa yorumu veya varsayım uydurma.
 - Eğer bir neden kaynaklarda açıkça yoksa "Bu değişimin nedeni kaynaklarda açıkça belirtilmemiştir" de.
@@ -527,7 +519,7 @@ Görevin:
 
 Cevap formatı:
 
-# {bank_name} 2026 Q1 Yönetici Özeti
+# {bank_name} {period_label} Yönetici Özeti
 
 1. Genel Görünüm
 2. Kârlılık
@@ -549,7 +541,7 @@ Yazım kuralları:
         "question": question,
         "bank": bank,
         "bank_name": bank_name,
-        "period": "2026_Q1",
+        "period": _get_period_code(session, bank),
         "metric_data": summary_items,
         "peer_rankings": peer_rankings,
         "rag_sources": [
@@ -570,7 +562,9 @@ Yazım kuralları:
         messages=[
             {
                 "role": "system",
-                "content": system_prompt.replace("{bank_name}", bank_name),
+                "content": system_prompt.replace("{bank_name}", bank_name).replace(
+                    "{period_label}", period_label
+                ),
             },
             {
                 "role": "user",
@@ -584,6 +578,7 @@ Yazım kuralları:
         return AskResponse(
             answer=build_fallback_summary_answer(
                 bank=bank,
+                period_label=period_label,
                 summary_items=summary_items,
                 peer_rankings=peer_rankings,
                 rag_sources=rag_sources,

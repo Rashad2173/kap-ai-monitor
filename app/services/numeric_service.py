@@ -12,6 +12,7 @@ from app.utils.llm_utils import safe_json_completion
 from app.schemas.api import AskResponse
 from app.services.bank_registry import get_bank_name
 from app.services.question_classifier import strip_bank_names_for_metric_detection
+from app.services.report_metadata_service import get_latest_report_ids
 from app.utils.text_utils import (
     calculate_change_text,
     format_value,
@@ -440,6 +441,15 @@ def collect_numeric_candidates(
         query = query.filter(FinancialMetric.ticker == bank)
     elif banks:
         query = query.filter(FinancialMetric.ticker.in_(banks))
+
+    # Bir ticker için birden fazla dönem (Q1, Q2, ...) DB'de birikince, skor
+    # eşitliğinde tie-break değere bakıyor, döneme değil; bu yüzden adayları
+    # her ticker'ın en güncel raporuyla sınırlıyoruz.
+    latest_tickers = [bank] if bank != "ALL" else banks
+    latest_report_ids = get_latest_report_ids(session, tickers=latest_tickers)
+
+    if latest_report_ids:
+        query = query.filter(FinancialMetric.report_id.in_(latest_report_ids.values()))
 
     rows = query.all()
 

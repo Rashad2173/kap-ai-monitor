@@ -56,20 +56,21 @@ function getSelectedBank() {
   return bankSelect.value;
 }
 
-function updateBankHeader() {
+function updateBankHeader(periodLabel) {
   const bank = getSelectedBank();
   const name = bankDisplayNames[bank] || bank;
+  const period = periodLabel || "güncel dönem";
 
   pageTitle.textContent = name;
 
   if (bank === "ALL") {
     pageSubtitle.textContent =
-      "Tüm bankaların 2026 Q1 KAP finansal raporları üzerinden analiz";
+      `Tüm bankaların ${period} KAP finansal raporları üzerinden analiz`;
     bankHint.textContent =
       "Tüm bankalar seçiliyken karşılaştırmalı sorular sorabilirsiniz.";
   } else {
     pageSubtitle.textContent =
-      `${name} 2026 Q1 KAP finansal raporu üzerinden analiz`;
+      `${name} ${period} KAP finansal raporu üzerinden analiz`;
     bankHint.textContent =
       `Soru cevapları öncelikle ${name} raporu üzerinden üretilecek.`;
   }
@@ -209,6 +210,8 @@ async function loadDashboardSummary() {
     }
 
     const data = await response.json();
+
+    updateBankHeader(data.period_label);
 
     const profitTitle = data.profit?.title || "-";
     const profitDescription = data.profit?.description || "";

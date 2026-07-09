@@ -9,6 +9,7 @@ from app.services.numeric_service import (
     current_numeric_value,
     llm_select_numeric_candidates,
 )
+from app.services.report_metadata_service import get_display_period_label, get_latest_report_ids
 from app.utils.text_utils import format_value, get_current_total_value, normalize_text
 
 
@@ -98,6 +99,14 @@ def _get_audit_text_for_bank(bank: str) -> str | None:
         if bank != "ALL":
             query = query.filter(RagChunk.ticker == bank)
 
+        latest_report_ids = get_latest_report_ids(
+            session,
+            tickers=[bank] if bank != "ALL" else None,
+        )
+
+        if latest_report_ids:
+            query = query.filter(RagChunk.report_id.in_(latest_report_ids.values()))
+
         chunks = query.filter(
             RagChunk.chunk_type == "text"
         ).limit(100).all()
@@ -119,13 +128,23 @@ def _get_audit_text_for_bank(bank: str) -> str | None:
         session.close()
 
 
+def _get_period_label(bank: str) -> str:
+    session = SessionLocal()
+
+    try:
+        return get_display_period_label(session, bank)
+    finally:
+        session.close()
+
+
 def get_dashboard_summary(bank: str = "ALL") -> DashboardSummaryResponse:
     bank = clean_bank(bank)
+    period_label = _get_period_label(bank)
 
     if bank == "ALL":
         profit_rows = _select_all_bank_metric_rows(
             intent="net_kar",
-            question="Tüm bankaların 2026 Q1 dönem net kârı ne kadar?",
+            question=f"Tüm bankaların {period_label} dönem net kârı ne kadar?",
         )
 
         if profit_rows:
@@ -165,6 +184,7 @@ def get_dashboard_summary(bank: str = "ALL") -> DashboardSummaryResponse:
                 "description": "Denetçi görüşü ve dikkat çekilen hususlar RAG tarafında aranabilir.",
             },
             summary=summary,
+            period_label=period_label,
         )
 
     bank_name = get_bank_name(bank)
@@ -206,7 +226,7 @@ def get_dashboard_summary(bank: str = "ALL") -> DashboardSummaryResponse:
         f"- Son dönem net kâr: {profit_title}\n"
         f"- Öne çıkan metrik: {highlight_title}\n"
         f"- Denetim/Risk: {audit_title}\n\n"
-        f"Detaylı analiz için '{bank_name} Q1 özetler misin?' diye sorabilirsin."
+        f"Detaylı analiz için '{bank_name} {period_label} özetler misin?' diye sorabilirsin."
     )
 
     return DashboardSummaryResponse(
@@ -223,4 +243,5 @@ def get_dashboard_summary(bank: str = "ALL") -> DashboardSummaryResponse:
             "description": audit_desc,
         },
         summary=summary,
+        period_label=period_label,
     )
