@@ -1,0 +1,19 @@
+# Virtual environment
+kap_env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Secrets
+.env
+
+# Data (large/generated, not source)
+data/
+
+# Editor/OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

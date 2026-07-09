@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KAP AI Monitor</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">K</div>
+        <div>
+          <h1>KAP AI Monitor</h1>
+          <p>Banka finansal rapor analizi</p>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label for="bankSelect">Banka Seçimi</label>
+        <select id="bankSelect">
+          <option value="ALL">Tüm Bankalar</option>
+          <option value="AKBNK">Akbank</option>
+          <option value="GARAN">Garanti BBVA</option>
+          <option value="VAKBN">VakıfBank</option>
+          <option value="ISCTR">İş Bankası</option>
+          <option value="YKBNK">Yapı Kredi</option>
+          <option value="HALKB">Halkbank</option>
+          <option value="ALBRK">Albaraka Türk</option>
+          <option value="TSKB">TSKB</option>
+          <option value="SKBNK">Şekerbank</option>
+          <option value="ICBCT">ICBC Turkey</option>
+          <option value="KLNMA">Türkiye Kalkınma ve Yatırım Bankası</option>
+          <option value="QNBTR">QNB Türkiye</option>
+        </select>
+        <small id="bankHint">
+          Tüm bankalar seçiliyken karşılaştırmalı sorular sorabilirsiniz.
+        </small>
+      </div>
+
+      <div class="quick-questions">
+        <h3>Hazır Sorular</h3>
+
+        <button data-question="Son 3 ayda bankaların net karı ne kadar?">
+          Son 3 ay net kârları
+        </button>
+
+        <button data-question="Seçili bankanın denetçi görüşü nedir?">
+          Denetçi görüşü
+        </button>
+
+        <button data-question="Krediler toplamı ne kadar?">
+          Krediler toplamı
+        </button>
+
+        <button data-question="Varlıklar toplamı ne kadar?">
+          Varlıklar toplamı
+        </button>
+
+        <button data-question="Bu rapordaki önemli dikkat çekilen hususlar nelerdir?">
+          Dikkat çekilen hususlar
+        </button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h2 id="pageTitle">Tüm Bankalar</h2>
+          <p id="pageSubtitle">
+            2026 Q1 KAP finansal raporları üzerinden analiz
+          </p>
+        </div>
+
+        <div class="status-pill" id="systemStatus">
+          Sistem hazırlanıyor
+        </div>
+      </header>
+
+      <section class="summary-section">
+        <div class="section-header">
+          <div>
+            <h2>Önemli Bilgiler</h2>
+            <p>
+              Site açıldığında DB + RAG üzerinden hazırlanacak özet alanı.
+            </p>
+          </div>
+
+          <button id="refreshSummaryBtn" class="secondary-btn">
+            Özeti Yenile
+          </button>
+        </div>
+
+        <div class="cards-grid">
+          <article class="info-card" id="profitInfoCard" title="Detay için tıkla">
+            <span class="card-label">Son Dönem Net Kâr</span>
+            <h3 id="profitCard">Yükleniyor...</h3>
+            <p id="profitCardDesc">Finansal metrikler okunuyor.</p>
+          </article>
+
+          <article class="info-card" id="highlightInfoCard" title="Detay için tıkla">
+            <span class="card-label">En Güçlü Kalem</span>
+            <h3 id="highlightCard">Yükleniyor...</h3>
+            <p id="highlightCardDesc">Raporlardan önemli metrikler çıkarılıyor.</p>
+          </article>
+
+          <article class="info-card" id="auditInfoCard" title="Detay için tıkla">
+            <span class="card-label">Denetim / Risk</span>
+            <h3 id="auditCard">Yükleniyor...</h3>
+            <p id="auditCardDesc">Denetçi görüşleri kontrol ediliyor.</p>
+          </article>
+        </div>
+
+        <div class="summary-box">
+          <h3>AI Genel Özeti</h3>
+          <p id="aiSummaryText">
+            Özet hazırlanıyor...
+          </p>
+        </div>
+      </section>
+
+      <section class="chat-section">
+        <div class="section-header">
+          <div>
+            <h2>Soru Sor</h2>
+            <p>
+              Seçili banka veya tüm bankalar üzerinden finansal rapor sorusu sorun.
+            </p>
+          </div>
+        </div>
+
+        <div class="chat-panel">
+          <div id="chatMessages" class="chat-messages">
+            <div class="message assistant">
+              <div class="message-bubble">
+                Merhaba. Bir banka seçip finansal raporlar hakkında soru sorabilirsiniz.
+                Sayısal sorularda veritabanındaki metrikler, açıklama sorularında RAG kullanılacak.
+              </div>
+            </div>
+          </div>
+
+          <form id="questionForm" class="question-form">
+            <textarea
+              id="questionInput"
+              rows="3"
+              placeholder="Örn: VakıfBank 2026 Q1 döneminde krediler toplamı ne kadar?"
+            ></textarea>
+
+            <button type="submit" id="askBtn">
+              Sor
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <section class="sources-section">
+        <div class="section-header">
+          <div>
+            <h2>Kaynaklar</h2>
+            <p>
+              Son cevabın hangi chunk veya finansal metriklerden üretildiği burada gösterilir.
+            </p>
+          </div>
+        </div>
+
+        <div id="sourcesBox" class="sources-box">
+          Henüz kaynak yok.
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="detailModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modalTitle">Detay</h2>
+        <button id="modalCloseBtn" class="modal-close" type="button">×</button>
+      </div>
+
+      <div id="modalContent" class="modal-content">
+        Detay bulunamadı.
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
